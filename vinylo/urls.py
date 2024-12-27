@@ -23,5 +23,6 @@ urlpatterns = [
     path('', views.vinylo),
     path('login', views.login),
     path('register', views.signup),
+    path('user', views.update_user),
     path('music', include('music_app.urls')),
 ]
