@@ -24,6 +24,7 @@ def login(request):
             'avatar': user.avatar,
             'year': user.year,
             'dateInit': user.date_init,
+            'currentDate': user.current_date,
         }
         return Response({'token': token.key, 'user': user_data}, status=status.HTTP_200_OK)
     return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
@@ -66,6 +67,7 @@ def update_user(request):
     user.name = data.get('name', user.name)
     user.avatar = data.get('avatar', user.avatar)
     user.date_init = data.get('dateInit', user.date_init)
+    user.current_date = data.get('dateInit', user.current_date)
 
     user.save()
     user_data = {
@@ -76,5 +78,6 @@ def update_user(request):
         'avatar': user.avatar,
         'year': user.year,
         'dateInit': user.date_init,
+        'currentDate': user.current_date
     }
     return Response({'message': 'User updated successfully', 'user': user_data}, status=status.HTTP_200_OK)
