@@ -25,8 +25,8 @@ class SongView(viewsets.ModelViewSet):
             return Response({'error': 'Profile is required'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             for artist in artists_data:
-                if Artist.objects.filter(profile=profile, name=artist['name']).exists():
-                    artist = Artist.objects.get(profile=profile, name=artist['name'])
+                if Artist.objects.filter(profile=request.user, name=artist['name']).exists():
+                    artist = Artist.objects.get(profile=request.user, name=artist['name'])
                     artists_ids.append(artist.id)
                 else:
                     artist_info = {
@@ -38,6 +38,7 @@ class SongView(viewsets.ModelViewSet):
                         'genres': artist['genres'],
                         'profile': user
                     }
+                
                     artist = Artist.objects.create(**artist_info)
                     artists_ids.append(artist.id)
 
@@ -67,6 +68,7 @@ class SongView(viewsets.ModelViewSet):
             'youtube_id': request.data.get('youtube_id'),
             'profile': user
         }
+        
 
         # Create the song
         song = Song.objects.create(**song_info)
