@@ -8,11 +8,17 @@ from music_app.serializers import SongSerializer
 from datetime import datetime
 
 # Create the song and add the artists
+
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 class SongView(viewsets.ModelViewSet):
     serializer_class = SongSerializer
     queryset = Song.objects.all()
 
     def create(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'error': 'You must be authenticated'}, status=status.HTTP_400_BAD_REQUEST)
+
         # Get the user for add the artists
         profile = request.data.get('profile')
         user = User.objects.get(id=profile)
@@ -25,10 +31,12 @@ class SongView(viewsets.ModelViewSet):
             return Response({'error': 'Profile is required'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             for artist in artists_data:
+        
                 if Artist.objects.filter(profile=request.user, name=artist['name']).exists():
                     artist = Artist.objects.get(profile=request.user, name=artist['name'])
                     artists_ids.append(artist.id)
                 else:
+                    
                     artist_info = {
                         'name': artist['name'],
                         'photo': artist['photo'],

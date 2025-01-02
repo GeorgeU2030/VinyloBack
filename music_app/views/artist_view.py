@@ -3,8 +3,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework import status
-from music_app.models import Artist, User, Award, Rank, Ranking
-from datetime import datetime
+from music_app.models import Artist, User, Award, Rank, Ranking, Song
+from datetime import datetime, timedelta
+from calendar import monthrange
+from django.db.models import Q
 
 @api_view(['PATCH'])
 @authentication_classes([TokenAuthentication])
@@ -18,8 +20,8 @@ def update_artist(request):
     start_date_str_format = request.data.get("start_date")
     end_date_str_format = request.data.get("end_date")
 
-    start_date = datetime.strptime(start_date_str_format, "%Y-%m-%dT%H:%M:%S.%fZ")
-    end_date = datetime.strptime(end_date_str_format, "%Y-%m-%dT%H:%M:%S.%fZ")
+    start_date = datetime.strptime(start_date_str_format, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date_str_format, "%Y-%m-%d")
 
     start_date_str = start_date.strftime("%Y-%m-%d")
     end_date_str = end_date.strftime("%Y-%m-%d")
@@ -28,10 +30,11 @@ def update_artist(request):
     artist_data = request.data.get('artists')
 
     # get the points for add to the artist
-    points_for_add = request.data.get('rating')
+    points_for_add = int(request.data.get('rating'))
+    total_points = 0
     for artist_data in artist_data:
-        # get every artist and update the points
-        artist = Artist.objects.filter(name=artist_data['name'], profile=request.user)
+        # get every artist and update the points, get for unique instance
+        artist = Artist.objects.get(name=artist_data['name'], profile=request.user)
 
         # update every point item for the artist 
         artist.points += points_for_add
@@ -195,5 +198,84 @@ def update_artist(request):
                 profile=request.user
             )
 
+    return Response({'message': 'The artists have been updated'}, status=status.HTTP_200_OK)
+    
 
-        return Response({'message': 'The artists have been updated'}, status=status.HTTP_200_OK)
+@api_view(['PUT'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def update_current_date(request):
+    new_current_date = request.data.get('currentDate')
+    # update the current date for the artist
+    profile = request.data.get('profile')
+    user = User.objects.get(id=profile)
+    user.current_date = new_current_date
+    user.save()
+
+    return Response({'message': 'The current date has been updated'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_artists_of_month(request):
+    # Get dates from request
+    start_date = request.data.get('start_date')
+    
+    # Convert strings to datetime objects
+    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+    
+    # Get the first and last day of the requested month
+    first_day_of_month = start_date_obj.replace(day=1).date()
+    _, last_day = monthrange(start_date_obj.year, start_date_obj.month)
+    last_day_of_month = start_date_obj.replace(day=last_day).date()
+    
+
+    # Query for songs that belong to the specified month
+    songs = Song.objects.filter(
+        profile=request.user
+    ).filter(
+        Q(
+            # Case 1: Song starts in the month
+            Q(start_date__year=start_date_obj.year) &
+            Q(start_date__month=start_date_obj.month)
+        ) |
+        Q(
+            # Case 2: Song ends in the month
+            Q(end_date__year=start_date_obj.year) &
+            Q(end_date__month=start_date_obj.month)
+        )
+    ).distinct()
+    
+    # Filter songs based on the number of days in the month
+    songs_in_month = []
+    
+    for song in songs:
+        # Calculate the days that fall within the month
+        song_start = max(song.start_date, first_day_of_month)
+        song_end = min(song.end_date, last_day_of_month)
+        
+        # Calculate days in current month vs total days
+        days_in_month = (song_end - song_start).days + 1
+        total_days = (song.end_date - song.start_date).days + 1
+        
+        # Include song if majority of days fall within the month
+        if days_in_month >= total_days / 2:
+            songs_in_month.append(song)
+    
+    # Get unique artists from the filtered songs
+    artists = Artist.objects.filter(songs__in=songs_in_month).distinct()
+    
+    # Prepare response data
+    artist_data = []
+    for artist in artists:
+        artist_data.append({
+            'id': artist.id,
+            'name': artist.name,
+            'photo': artist.photo,
+        })
+    
+    return Response({
+        'month': start_date_obj.strftime('%B %Y'),
+        'artists': artist_data
+    })
+
