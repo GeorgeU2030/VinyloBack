@@ -59,13 +59,13 @@ class SongView(viewsets.ModelViewSet):
 
         release_date_str = request.data.get('release_date')
         if len(release_date_str) == 4:
-            date_3 = datetime.strptime(release_date_str, "%Y")
+            release_formatted_date = int(release_date_str)  
         else:
             date_3 = datetime.strptime(release_date_str, "%Y-%m-%d")
+            release_formatted_date = date_3.year 
 
         start_formatted_date = date.strftime("%Y-%m-%d")
         end_formatted_date = date_2.strftime("%Y-%m-%d")
-        release_formatted_date = date_3.strftime("%Y-%m-%d")
 
         # Add the song
         song_info = {
@@ -87,6 +87,10 @@ class SongView(viewsets.ModelViewSet):
         song.artists.set(artists_ids)
 
         serializer = self.get_serializer(song)
+
+        for artist_id in artists_ids:
+            calculate_consecutive_weeks(request, artist_id)
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -102,3 +106,41 @@ def last_week(request):
         week = 1
     
     return Response({'week': week})
+
+
+
+def calculate_consecutive_weeks(request, artist_id):    
+    artist = Artist.objects.get(id=artist_id, profile=request.user)
+
+    current_week = request.data.get('week')
+
+    artist_songs = Song.objects.filter(artists=artist, profile=request.user).order_by('week')
+    
+    if not artist_songs:
+            return Response({'message': 'No songs found for this artist'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+
+    consecutive_count = 1
+    bonus_points = 0
+
+    recent_songs = artist_songs.filter(week__lte=current_week).order_by('-week')
+    weeks = [song.week for song in recent_songs]
+        
+    # Check for consecutive weeks backwards from current week
+    for i in range(len(weeks) - 1):
+        if weeks[i] - weeks[i + 1] == 1:  # Weeks are consecutive
+            consecutive_count += 1
+            # Calculate bonus points based on consecutive appearances
+            if consecutive_count >= 2:  # Start bonus from second consecutive appearance
+                    bonus_points = min(consecutive_count + 1,5)  # 3 points for 2 consecutive, 4 for 3 consecutive, etc.
+        else:
+            break  # Break streak if weeks are not consecutive
+        
+    if bonus_points > 0:
+        # Update artist points
+        artist.points += bonus_points
+        artist.points_semester += bonus_points
+        artist.points_year += bonus_points
+        artist.save()
+
+    

@@ -143,7 +143,7 @@ def update_artist(request):
         award = Award.objects.create(
             type_award=5,
             description=f"Gold award {year}",
-            points=30,
+            points=50,
             year=award_year
         )
 
@@ -184,7 +184,7 @@ def update_artist(request):
         award = Award.objects.create(
             type_award=type_award,
             description=f"Ambar award {period}",
-            points=10,
+            points=20,
             year=award_year
         )
 
@@ -315,3 +315,5 @@ def add_month_award(request):
     artist.awards.add(award)
     
     return Response({'message': 'The award has been added'}, status=status.HTTP_200_OK)
+
+

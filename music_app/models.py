@@ -60,7 +60,7 @@ class Song(models.Model):
     start_date = models.DateField(null=False, blank=False)
     end_date = models.DateField(null=False, blank=False)
     week = models.IntegerField(default=0)
-    release_date = models.DateField(null=False, blank=False)
+    release_date = models.IntegerField(default=0)
     album = models.CharField(null=False, blank=False)
     youtube_id = models.CharField(max_length=255, null=False, blank=False)
     artists = models.ManyToManyField(Artist, related_name="songs")
