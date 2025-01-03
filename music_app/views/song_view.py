@@ -108,6 +108,14 @@ def last_week(request):
     return Response({'week': week})
 
 
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_all_songs(request):
+    songs = Song.objects.filter(profile=request.user).order_by('-week')
+    serializer = SongSerializer(songs, many=True)
+    return Response(serializer.data)
+
 
 def calculate_consecutive_weeks(request, artist_id):    
     artist = Artist.objects.get(id=artist_id, profile=request.user)

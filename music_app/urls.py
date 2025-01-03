@@ -13,4 +13,5 @@ urlpatterns = [
     path('new_current_date/', artist_view.update_current_date, name='new_current_date'),
     path('get_artist_month/', artist_view.get_artists_of_month, name='get_artist_month'),
     path('add_month_award/', artist_view.add_month_award, name='add_month_award'),
+    path('get_allsongs/', song_view.get_all_songs, name='get_allsongs'),
 ]
