@@ -53,7 +53,7 @@ def update_artist(request):
         artist.awards.add(award)
 
         # get the total points for the artist
-        week_awards = Award.objects.filter(type_award=1)
+        week_awards = artist.awards.filter(type_award=1)
         total_points += sum([award.points for award in week_awards])
         
         # get the rating for the artist and update it
@@ -212,7 +212,18 @@ def update_current_date(request):
     user.current_date = new_current_date
     user.save()
 
-    return Response({'message': 'The current date has been updated'}, status=status.HTTP_200_OK)
+    user_data = {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'name': user.name,
+        'avatar': user.avatar,
+        'year': user.year,
+        'dateInit': user.date_init,
+        'currentDate': user.current_date
+    }
+
+    return Response({'message': 'The current date has been updated', 'user':user_data}, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
@@ -279,3 +290,28 @@ def get_artists_of_month(request):
         'artists': artist_data
     })
 
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def add_month_award(request):
+    # Get data from request
+    artist_id = request.data.get('id')
+    period = request.data.get('period')
+
+    # Get the year for the period
+    year = period.split(' ')[-1]
+    award_year = int(year)
+    
+    # Get artist and create award
+    artist = Artist.objects.get(id=artist_id)
+    award = Award.objects.create(
+        type_award=2,
+        description=f"Silver award {period}",
+        points=5,
+        year=award_year
+    )
+    
+    artist.awards.add(award)
+    
+    return Response({'message': 'The award has been added'}, status=status.HTTP_200_OK)

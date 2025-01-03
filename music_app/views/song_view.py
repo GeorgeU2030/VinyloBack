@@ -58,7 +58,10 @@ class SongView(viewsets.ModelViewSet):
         date_2 = datetime.strptime(date_str_2, "%Y-%m-%d")  
 
         release_date_str = request.data.get('release_date')
-        date_3 = datetime.strptime(release_date_str, "%Y-%m-%d")  
+        if len(release_date_str) == 4:
+            date_3 = datetime.strptime(release_date_str, "%Y")
+        else:
+            date_3 = datetime.strptime(release_date_str, "%Y-%m-%d")
 
         start_formatted_date = date.strftime("%Y-%m-%d")
         end_formatted_date = date_2.strftime("%Y-%m-%d")
