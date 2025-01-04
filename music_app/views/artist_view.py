@@ -4,9 +4,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework import status
 from music_app.models import Artist, User, Award, Rank, Ranking, Song
-from datetime import datetime, timedelta
+from datetime import datetime
 from calendar import monthrange
-from django.db.models import Q
+from django.db.models import Q, Count
+from music_app.serializers import ArtistSerializer, AwardSerializer, RankingSerializer
 
 @api_view(['PATCH'])
 @authentication_classes([TokenAuthentication])
@@ -111,7 +112,7 @@ def update_artist(request):
 
         award = Award.objects.create(
             type_award=type_award,
-            description=f"Ambar award {period}",
+            description=f"Amber award {period}",
             points=10,
             year=award_year
         )
@@ -121,7 +122,7 @@ def update_artist(request):
         for artist in top_10_musicians:
             Ranking.objects.create(
                 artist=artist,
-                period=period,
+                period=f"Amber award {period}",
                 points=artist.points_semester,
                 profile=request.user
         )
@@ -142,7 +143,7 @@ def update_artist(request):
 
         award = Award.objects.create(
             type_award=5,
-            description=f"Gold award {year}",
+            description=f"Gold award {year_period}",
             points=50,
             year=award_year
         )
@@ -152,7 +153,7 @@ def update_artist(request):
         for artist in top_10_musicians_year:
             Ranking.objects.create(
                 artist=artist,
-                period=year_period,
+                period=f"Gold award {year_period}",
                 points=artist.points_year,
                 profile=request.user
             )
@@ -183,7 +184,7 @@ def update_artist(request):
 
         award = Award.objects.create(
             type_award=type_award,
-            description=f"Ambar award {period}",
+            description=f"Amber award {period}",
             points=20,
             year=award_year
         )
@@ -193,7 +194,7 @@ def update_artist(request):
         for artist in top_10_musicians:
             Ranking.objects.create(
                 artist=artist,
-                period=period,
+                period=f"Amber award {period}",
                 points=artist.points_semester,
                 profile=request.user
             )
@@ -312,8 +313,77 @@ def add_month_award(request):
         year=award_year
     )
     
+    artist.points += 5
+    artist.points_year += 5
+    artist.points_semester += 5
+    artist.save()
     artist.awards.add(award)
     
     return Response({'message': 'The award has been added'}, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def ranking(request):
+    musicians = Artist.objects.filter(profile=request.user).order_by('current_position')
+    serializer = ArtistSerializer(musicians, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def ranking_awards(request):
+    artists = (Artist.objects.filter(profile=request.user)
+                 .annotate(award_count=Count('awards'))
+                 .order_by('-award_count', 'current_position'))
+    serializer = ArtistSerializer(artists, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_awards_history(request):
+    artists = Artist.objects.filter(profile=request.user)
+    awards = Award.objects.filter(artists__in=artists, type_award__in=[2, 3, 4, 5]).order_by('-id')
+    
+    response = []
+    for award in awards:
+        award_serializer = AwardSerializer(award)
+        response.append({
+            'artist_name': award.artists.first().name,
+            'artist_photo': award.artists.first().photo if award.artists.first().photo else None,
+            'award': award_serializer.data
+        })
+
+    return Response(response)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def rankings_by_history(request, period_rank):
+    rankings = Ranking.objects.filter(profile=request.user,period=period_rank).order_by('id','-points')[:10]
+    serializer = RankingSerializer(rankings, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def stats(request):
+    artists_data = Artist.objects.filter(profile=request.user).order_by('current_position').values()
+
+    for artist in artists_data:
+        ranks = Rank.objects.filter(artist_id=artist['id']).order_by('-week').values('week', 'position')[:10]
+        artist['ranks'] = {rank['week']: rank['position'] for rank in ranks}
+
+    try:
+        latest_song = Song.objects.latest('id')
+        max_week = latest_song.week
+    except Song.DoesNotExist:
+        max_week = 0
+
+    return Response({'artistData': list(artists_data), 'maxWeek': max_week})
