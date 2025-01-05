@@ -32,8 +32,8 @@ def update_artist(request):
 
     # get the points for add to the artist
     points_for_add = int(request.data.get('rating'))
-    total_points = 0
     for artist_data in artist_data:
+        total_points = 0
         # get every artist and update the points, get for unique instance
         artist = Artist.objects.get(name=artist_data['name'], profile=request.user)
 
@@ -56,7 +56,7 @@ def update_artist(request):
         # get the total points for the artist
         week_awards = artist.awards.filter(type_award=1)
         total_points += sum([award.points for award in week_awards])
-        
+    
         # get the rating for the artist and update it
         rating = total_points / len(week_awards) if week_awards else 0
 
@@ -199,6 +199,9 @@ def update_artist(request):
                 profile=request.user
             )
 
+        Artist.objects.filter(profile=request.user).update(points_semester=0)
+        Artist.objects.filter(profile=request.user).update(points_year=0)
+
     return Response({'message': 'The artists have been updated'}, status=status.HTTP_200_OK)
     
 
@@ -318,6 +321,15 @@ def add_month_award(request):
     artist.points_semester += 5
     artist.save()
     artist.awards.add(award)
+
+    # update the current position for the artists
+
+    artists = Artist.objects.filter(profile=request.user)
+    artists_sorted = sorted(artists, key=lambda artist_x: artist_x.points, reverse=True)
+
+    for position, artist in enumerate(artists_sorted, start=1):
+        artist.current_position = position
+        artist.save()
     
     return Response({'message': 'The award has been added'}, status=status.HTTP_200_OK)
 
@@ -347,19 +359,67 @@ def ranking_awards(request):
 @permission_classes([IsAuthenticated])
 def get_awards_history(request):
     artists = Artist.objects.filter(profile=request.user)
-    awards = Award.objects.filter(artists__in=artists, type_award__in=[2, 3, 4, 5]).order_by('-id')
+    
+    awards = Award.objects.filter(
+        artists__in=artists,
+        type_award__in=[2, 3, 4, 5]
+    ).order_by('-year', 'type_award', '-id')
+    
+    def get_award_priority(award):
+        
+        year_priority = -award.year * 1000  
+        
+        month_order = 0
+        if "July" in award.description:
+            month_order = 6
+        elif "August" in award.description:
+            month_order = 5
+        elif "September" in award.description:
+            month_order = 4
+        elif "October" in award.description:
+            month_order = 3
+        elif "November" in award.description:
+            month_order = 2
+        elif "December" in award.description:
+            month_order = 1
+        elif "January" in award.description:
+            month_order = 12
+        elif "February" in award.description:
+            month_order = 11
+        elif "March" in award.description:
+            month_order = 10
+        elif "April" in award.description:
+            month_order = 9
+        elif "May" in award.description:
+            month_order = 8
+        elif "June" in award.description:
+            month_order = 7
+        
+        
+        award_priority = year_priority + month_order
+        
+        
+        if "Silver" in award.description:
+            return award_priority + 0.1
+        elif "Amber" in award.description:
+            return award_priority + 0.2
+        elif "Gold" in award.description:
+            return award_priority + 0.3
+        
+        return award_priority
+    
+    sorted_awards = sorted(awards, key=get_award_priority)
     
     response = []
-    for award in awards:
+    for award in sorted_awards:
         award_serializer = AwardSerializer(award)
         response.append({
             'artist_name': award.artists.first().name,
             'artist_photo': award.artists.first().photo if award.artists.first().photo else None,
             'award': award_serializer.data
         })
-
+    
     return Response(response)
-
 
 @api_view(['GET'])
 @authentication_classes([TokenAuthentication])
@@ -367,6 +427,15 @@ def get_awards_history(request):
 def rankings_by_history(request, period_rank):
     rankings = Ranking.objects.filter(profile=request.user,period=period_rank).order_by('id','-points')[:10]
     serializer = RankingSerializer(rankings, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_artist(request, artist_id):
+    musician = Artist.objects.filter(profile=request.user).get(id=artist_id)
+    serializer = ArtistSerializer(musician)
     return Response(serializer.data)
 
 

@@ -13,7 +13,7 @@ class ArtistSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class RankingSerializer(serializers.ModelSerializer):
-    musician = ArtistSerializer()
+    artist = ArtistSerializer()
     class Meta:
         model = Ranking
         fields = '__all__'

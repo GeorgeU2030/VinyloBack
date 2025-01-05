@@ -117,6 +117,16 @@ def get_all_songs(request):
     return Response(serializer.data)
 
 
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_songs_by_artist(request, artist_id):
+    musician = Artist.objects.filter(profile=request.user).get(id=artist_id)
+    songs = Song.objects.filter(profile=request.user,musicians=musician)
+    serializer = SongSerializer(songs, many=True)
+    return Response(serializer.data)
+
+
 def calculate_consecutive_weeks(request, artist_id):    
     artist = Artist.objects.get(id=artist_id, profile=request.user)
 
