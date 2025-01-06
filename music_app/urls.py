@@ -19,6 +19,7 @@ urlpatterns = [
     path('get_awards_history/', artist_view.get_awards_history, name='get_awards_history'),
     path('ranking_period/<str:period_rank>', artist_view.rankings_by_history, name='ranking_period'),
     path('stats/', artist_view.stats, name='stats'),
-    path('get_artist/<int:id>', artist_view.get_artist, name='get_artist'),
-    path('get_song_artist/<int:id>', song_view.get_songs_by_artist, name='get_song_artist'),
+    path('get_artist/<int:artist_id>', artist_view.get_artist, name='get_artist'),
+    path('get_song_artist/<int:artist_id>', song_view.get_songs_by_artist, name='get_song_artist'),
+    path('award_artist/<int:artist_id>', artist_view.awards_artist, name='award_artist'),
 ]

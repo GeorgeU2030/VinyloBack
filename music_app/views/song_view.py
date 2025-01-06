@@ -122,7 +122,7 @@ def get_all_songs(request):
 @permission_classes([IsAuthenticated])
 def get_songs_by_artist(request, artist_id):
     musician = Artist.objects.filter(profile=request.user).get(id=artist_id)
-    songs = Song.objects.filter(profile=request.user,musicians=musician)
+    songs = Song.objects.filter(profile=request.user,artists=musician)
     serializer = SongSerializer(songs, many=True)
     return Response(serializer.data)
 

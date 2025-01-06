@@ -105,19 +105,29 @@ def update_artist(request):
             award_year = year
 
 
+
         # get the top 10 musicians for the period
         top_10_musicians = Artist.objects.filter(profile=request.user).order_by('-points_semester')[:10]
 
         first_artist = top_10_musicians[0]
 
+        first_artist.points += 20
+        first_artist.points_semester += 20
+        first_artist.points_year += 20
+        first_artist.save()
+
+        top_10_musicians = Artist.objects.filter(profile=request.user).order_by('-points_semester')[:10]
+        first_artist = top_10_musicians[0]
+
         award = Award.objects.create(
             type_award=type_award,
             description=f"Amber award {period}",
-            points=10,
+            points=20,
             year=award_year
         )
 
         first_artist.awards.add(award)
+
 
         for artist in top_10_musicians:
             Ranking.objects.create(
@@ -128,13 +138,13 @@ def update_artist(request):
         )
 
         if start_date.month in [1,2]:
-            year_period = f"Period - {str(year-1)}"
+            year_period = f"Period {str(year-1)}"
             award_year = year - 1
         elif start_date.month in [3,4,5,6,7,8,9]:
-            year_period = f"Period - {str(year - 1)} - {str(year)}"
-            award_year = year - 1
+            year_period = f"Period {str(year - 1)} - {str(year)}"
+            award_year = year 
         elif start_date.month in [10,11,12]:
-            year_period = f"Period - {str(year)}"
+            year_period = f"Period {str(year)}"
             award_year = year
 
         top_10_musicians_year = Artist.objects.filter(profile=request.user).order_by('-points_year')[:10]
@@ -160,6 +170,14 @@ def update_artist(request):
         
         Artist.objects.filter(profile=request.user).update(points_semester=0)
         Artist.objects.filter(profile=request.user).update(points_year=0)
+
+        first_artist_year.refresh_from_db()
+
+        first_artist_year.points += 50
+        first_artist_year.points_semester += 50
+        first_artist_year.points_year += 50
+        first_artist_year.save()
+
 
         return Response({'message': 'The artists have been updated'}, status=status.HTTP_200_OK)
         
@@ -200,7 +218,11 @@ def update_artist(request):
             )
 
         Artist.objects.filter(profile=request.user).update(points_semester=0)
-        Artist.objects.filter(profile=request.user).update(points_year=0)
+
+        first_artist.points += 20
+        first_artist.points_semester += 20
+        first_artist.points_year += 20
+        first_artist.save()
 
     return Response({'message': 'The artists have been updated'}, status=status.HTTP_200_OK)
     
@@ -359,65 +381,63 @@ def ranking_awards(request):
 @permission_classes([IsAuthenticated])
 def get_awards_history(request):
     artists = Artist.objects.filter(profile=request.user)
-    
     awards = Award.objects.filter(
         artists__in=artists,
         type_award__in=[2, 3, 4, 5]
-    ).order_by('-year', 'type_award', '-id')
-    
-    def get_award_priority(award):
-        
-        year_priority = -award.year * 1000  
-        
-        month_order = 0
-        if "July" in award.description:
-            month_order = 6
-        elif "August" in award.description:
-            month_order = 5
-        elif "September" in award.description:
-            month_order = 4
-        elif "October" in award.description:
-            month_order = 3
-        elif "November" in award.description:
-            month_order = 2
-        elif "December" in award.description:
-            month_order = 1
-        elif "January" in award.description:
-            month_order = 12
-        elif "February" in award.description:
-            month_order = 11
-        elif "March" in award.description:
-            month_order = 10
-        elif "April" in award.description:
-            month_order = 9
-        elif "May" in award.description:
-            month_order = 8
-        elif "June" in award.description:
-            month_order = 7
-        
-        
-        award_priority = year_priority + month_order
-        
-        
-        if "Silver" in award.description:
-            return award_priority + 0.1
-        elif "Amber" in award.description:
-            return award_priority + 0.2
-        elif "Gold" in award.description:
-            return award_priority + 0.3
-        
-        return award_priority
-    
-    sorted_awards = sorted(awards, key=get_award_priority)
-    
+    )
+
+    awards_by_year = {}
+    for award in awards:
+        year = award.year
+        if year not in awards_by_year:
+            awards_by_year[year] = []
+        awards_by_year[year].append(award)
+
     response = []
-    for award in sorted_awards:
-        award_serializer = AwardSerializer(award)
-        response.append({
-            'artist_name': award.artists.first().name,
-            'artist_photo': award.artists.first().photo if award.artists.first().photo else None,
-            'award': award_serializer.data
-        })
+    for year in sorted(awards_by_year.keys(), reverse=True):
+        year_awards = awards_by_year[year]
+        sorted_year_awards = []
+
+        # Add Gold award at the end
+        for award in year_awards:
+            if 'Gold' in award.description:
+                sorted_year_awards.append(award)
+
+        # Add mid-year Amber award
+        for award in year_awards:
+            if 'Amber' in award.description and 'Semester 2' in award.description:
+                sorted_year_awards.append(award)
+        
+        # Second semester (July to December) - reversed
+        months_second_half = ['December', 'November', 'October', 'September', 'August', 'July']
+        
+        for month in months_second_half:
+            for award in year_awards:
+                if month in award.description and 'Amber' not in award.description and 'Gold' not in award.description:
+                    sorted_year_awards.append(award)
+        
+        # Add year-start Amber award
+        for award in year_awards:
+            if 'Amber' in award.description and 'Semester 1' in award.description:
+                sorted_year_awards.append(award)
+        
+        # First semester (January to June) - reversed
+        months_first_half = ['June', 'May', 'April', 'March', 'February', 'January']
+        
+        for month in months_first_half:
+            for award in year_awards:
+                if month in award.description and 'Amber' not in award.description and 'Gold' not in award.description:
+                    sorted_year_awards.append(award)
+        
+        
+        
+        for award in sorted_year_awards:
+            award_serializer = AwardSerializer(award)
+            response.append({
+                'artist_name': award.artists.first().name,
+                'artist_photo': award.artists.first().photo if award.artists.first().photo else None,
+                'award': award_serializer.data
+            })
     
     return Response(response)
 
@@ -425,7 +445,7 @@ def get_awards_history(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def rankings_by_history(request, period_rank):
-    rankings = Ranking.objects.filter(profile=request.user,period=period_rank).order_by('id','-points')[:10]
+    rankings = Ranking.objects.filter(profile=request.user,period=period_rank).order_by('-points')[:10]
     serializer = RankingSerializer(rankings, many=True)
     return Response(serializer.data)
 
@@ -456,3 +476,22 @@ def stats(request):
         max_week = 0
 
     return Response({'artistData': list(artists_data), 'maxWeek': max_week})
+
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def awards_artist(request, artist_id):
+    artist = Artist.objects.filter(profile=request.user).get(id=artist_id)
+    if not artist:
+        return Response({"error": "Musician not found"}, status=status.HTTP_404_NOT_FOUND)
+    
+    awards = {
+        "bronze": artist.awards.filter(type_award=1).count(),
+        "silver": AwardSerializer(artist.awards.filter(type_award=2), many=True).data,
+        "amber": AwardSerializer(artist.awards.filter(type_award__in=[3,4]), many=True).data,
+        "gold": AwardSerializer(artist.awards.filter(type_award=5), many=True).data,
+    }
+
+    return Response(awards)
